@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VideoSplit — MP4 Segmenter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: #2e2e38;
+    --amber: #f0a500;
+    --amber-dim: #a87200;
+    --text: #e8e8ec;
+    --muted: #7a7a88;
+    --danger: #e05050;
+    --success: #3dba7a;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    width: 100%;
+    border-bottom: 1px solid var(--border);
+    padding: 18px 40px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+    color: var(--amber);
+  }
+  header span {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  main {
+    width: 100%;
+    max-width: 860px;
+    padding: 40px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  /* Drop zone */
+  #dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  #dropzone:hover, #dropzone.drag-over {
+    border-color: var(--amber);
+    background: rgba(240,165,0,0.04);
+  }
+  #dropzone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  #dropzone .dz-icon {
+    width: 48px; height: 48px; margin: 0 auto 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #dropzone .dz-icon svg { width: 22px; height: 22px; stroke: var(--amber); fill: none; }
+  #dropzone p { font-size: 15px; color: var(--text); margin-bottom: 6px; }
+  #dropzone small { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+  /* Video preview */
+  #preview-section { display: none; }
+  #video-wrap {
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--border);
+  }
+  #video-wrap video {
+    width: 100%;
+    max-height: 360px;
+    display: block;
+    object-fit: contain;
+  }
+  .meta-row {
+    display: flex; gap: 24px; padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .meta-item label {
+    display: block; font-size: 11px; font-family: var(--mono);
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;
+  }
+  .meta-item value {
+    font-family: var(--mono); font-size: 15px; color: var(--text);
+  }
+
+  /* Controls */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .panel-title {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 20px;
+  }
+
+  .slider-row {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+  }
+  .slider-row label {
+    font-size: 13px; color: var(--muted); min-width: 120px;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--amber);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--amber);
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--amber);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  .slider-val {
+    font-family: var(--mono); font-size: 14px;
+    color: var(--amber); min-width: 52px; text-align: right;
+  }
+
+  /* Timeline */
+  #timeline {
+    margin-top: 4px;
+    height: 40px;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .tl-seg {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+    border-right: 1px solid var(--bg);
+    flex-shrink: 0;
+    transition: background 0.2s;
+    cursor: default;
+    user-select: none;
+    overflow: hidden;
+    background: var(--surface2);
+  }
+  .tl-seg:hover { background: rgba(240,165,0,0.18); color: var(--amber); }
+  .tl-seg:last-child { border-right: none; }
+  .seg-count {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    margin-top: 8px;
+  }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 12px; margin-top: 8px; }
+  .btn {
+    font-family: var(--mono); font-size: 13px;
+    padding: 10px 22px; border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text);
+    cursor: pointer; transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { background: var(--surface2); border-color: var(--muted); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-primary {
+    background: var(--amber); color: #0e0e10; border-color: var(--amber);
+    font-weight: 500;
+  }
+  .btn-primary:hover { background: #ffc22a; border-color: #ffc22a; }
+  .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; flex-shrink: 0; }
+
+  /* Progress */
+  #progress-wrap { display: none; }
+  #progress-bar-outer {
+    height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px;
+  }
+  #progress-bar {
+    height: 100%; background: var(--amber); border-radius: 3px;
+    width: 0%; transition: width 0.2s;
+  }
+  #progress-label { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+  /* Results */
+  #results-section { display: none; }
+  .results-grid {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .seg-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .seg-row:hover { border-color: var(--border); }
+  .seg-index {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--amber);
+    min-width: 28px;
+  }
+  .seg-info {
+    flex: 1;
+  }
+  .seg-info .seg-name {
+    font-family: var(--mono); font-size: 13px; color: var(--text);
+  }
+  .seg-info .seg-time {
+    font-size: 12px; color: var(--muted); margin-top: 2px;
+  }
+  .seg-size {
+    font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 56px; text-align: right;
+  }
+  .dl-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 6px 14px; border-radius: 6px;
+    font-family: var(--mono); font-size: 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none; transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .dl-btn:hover { background: var(--amber); color: #0e0e10; border-color: var(--amber); }
+  .dl-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; }
+
+  #status-msg {
+    font-family: var(--mono); font-size: 13px; padding: 10px 14px;
+    border-radius: 8px; display: none; margin-top: 12px;
+  }
+  #status-msg.error { background: rgba(224,80,80,0.12); color: var(--danger); border: 1px solid rgba(224,80,80,0.3); }
+  #status-msg.info { background: rgba(240,165,0,0.08); color: var(--amber); border: 1px solid rgba(240,165,0,0.2); }
+
+  #ffmpeg-loading {
+    background: rgba(240,165,0,0.08); border: 1px solid rgba(240,165,0,0.2);
+    border-radius: 8px; padding: 10px 14px;
+    font-family: var(--mono); font-size: 12px; color: var(--amber);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(240,165,0,0.2);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 600px) {
+    header { padding: 14px 20px; }
+    main { padding: 24px 16px 60px; }
+    .meta-row { flex-wrap: wrap; gap: 12px; }
+    .btn-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VideoSplit</h1>
+  <span>// MP4 segment tool</span>
+</header>
+
+<main>
+
+  <!-- Status / FFmpeg loading notice -->
+  <div id="ffmpeg-loading">
+    <div class="spinner"></div>
+    <span id="ffmpeg-status">Loading FFmpeg engine…</span>
+  </div>
+
+  <!-- Drop zone -->
+  <div id="dropzone">
+    <input type="file" id="file-input" accept="video/mp4,video/*">
+    <div class="dz-icon">
+      <svg viewBox="0 0 24 24" stroke-width="1.5">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <polygon points="10,9 16,12 10,15"/>
+      </svg>
+    </div>
+    <p>Drop an MP4 file here, or click to browse</p>
+    <small>Processed entirely in your browser — no uploads</small>
+  </div>
+
+  <!-- Preview + Controls -->
+  <div id="preview-section">
+
+    <div id="video-wrap">
+      <video id="video-preview" controls></video>
+    </div>
+
+    <div class="meta-row">
+      <div class="meta-item">
+        <label>Duration</label>
+        <value id="meta-duration">—</value>
+      </div>
+      <div class="meta-item">
+        <label>File size</label>
+        <value id="meta-size">—</value>
+      </div>
+      <div class="meta-item">
+        <label>File name</label>
+        <value id="meta-name">—</value>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Segment settings</div>
+
+      <div class="slider-row">
+        <label>Segment length</label>
+        <input type="range" id="seg-slider" min="1" max="300" value="30" step="1">
+        <span class="slider-val" id="seg-val">30s</span>
+      </div>
+
+      <div id="timeline"></div>
+      <div class="seg-count" id="seg-count"></div>
+
+      <div class="btn-row" style="margin-top:20px">
+        <button class="btn btn-primary" id="btn-split" disabled>
+          <svg viewBox="0 0 24 24" stroke-width="1.8">
+            <path d="M12 2v20M2 12h20" stroke-linecap="round"/>
+          </svg>
+          Split Video
+        </button>
+        <button class="btn" id="btn-reset">
+          <svg viewBox="0 0 24 24" stroke-width="1.8">
+            <path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.36 2.64L3 3v6h6L6.64 6.64" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Reset
+        </button>
+      </div>
+
+      <!-- Progress -->
+      <div id="progress-wrap" style="margin-top:18px">
+        <div id="progress-bar-outer"><div id="progress-bar"></div></div>
+        <div id="progress-label">Preparing…</div>
+      </div>
+
+      <div id="status-msg"></div>
+    </div>
+
+  </div>
+
+  <!-- Results -->
+  <div id="results-section">
+    <div class="panel">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+        <div class="panel-title" style="margin-bottom:0">Segments</div>
+        <button class="btn btn-primary" id="btn-dl-all">
+          <svg viewBox="0 0 24 24" stroke-width="1.8">
+            <path d="M12 5v10M7 15l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 20h16" stroke-linecap="round"/>
+          </svg>
+          Download All (ZIP)
+        </button>
+      </div>
+      <div class="results-grid" id="results-grid"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- JSZip for ZIP downloads -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- FFmpeg.wasm -->
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
+
+<script>
+(async () => {
+  const { FFmpeg } = FFmpegWASM;
+  const { fetchFile, toBlobURL } = FFmpegUtil;
+
+  let ffmpeg = null;
+  let videoDuration = 0;
+  let videoFile = null;
+  let segmentBlobs = [];
+  let baseName = 'video';
+
+  const ffmpegStatus = document.getElementById('ffmpeg-status');
+  const ffmpegLoading = document.getElementById('ffmpeg-loading');
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const previewSection = document.getElementById('preview-section');
+  const videoPreview = document.getElementById('video-preview');
+  const metaDuration = document.getElementById('meta-duration');
+  const metaSize = document.getElementById('meta-size');
+  const metaName = document.getElementById('meta-name');
+  const segSlider = document.getElementById('seg-slider');
+  const segVal = document.getElementById('seg-val');
+  const timeline = document.getElementById('timeline');
+  const segCount = document.getElementById('seg-count');
+  const btnSplit = document.getElementById('btn-split');
+  const btnReset = document.getElementById('btn-reset');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressBar = document.getElementById('progress-bar');
+  const progressLabel = document.getElementById('progress-label');
+  const statusMsg = document.getElementById('status-msg');
+  const resultsSection = document.getElementById('results-section');
+  const resultsGrid = document.getElementById('results-grid');
+  const btnDlAll = document.getElementById('btn-dl-all');
+
+  function showStatus(msg, type) {
+    statusMsg.textContent = msg;
+    statusMsg.className = type;
+    statusMsg.style.display = msg ? 'block' : 'none';
+  }
+
+  function formatDuration(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    return `${m}:${String(sec).padStart(2,'0')}`;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1048576).toFixed(1) + ' MB';
+  }
+
+  function updateTimeline() {
+    if (!videoDuration) return;
+    const segLen = parseInt(segSlider.value);
+    const count = Math.ceil(videoDuration / segLen);
+    segVal.textContent = segLen + 's';
+
+    timeline.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const start = i * segLen;
+      const end = Math.min((i + 1) * segLen, videoDuration);
+      const pct = ((end - start) / videoDuration) * 100;
+      const div = document.createElement('div');
+      div.className = 'tl-seg';
+      div.style.width = pct + '%';
+      div.style.background = i % 2 === 0 ? '#222228' : '#1c1c22';
+      div.title = `${formatDuration(start)} → ${formatDuration(end)}`;
+      if (pct > 6) div.textContent = i + 1;
+      timeline.appendChild(div);
+    }
+    segCount.textContent = `${count} segment${count !== 1 ? 's' : ''} × up to ${segLen}s each`;
+  }
+
+  // Load FFmpeg
+  try {
+    ffmpeg = new FFmpeg();
+    ffmpeg.on('log', ({ message }) => {
+      if (message.includes('time=')) {
+        const m = message.match(/time=(\d+):(\d+):([\d.]+)/);
+        if (m) {
+          const elapsed = parseInt(m[1])*3600 + parseInt(m[2])*60 + parseFloat(m[3]);
+          const segLen = parseInt(segSlider.value);
+          const pct = Math.min(100, (elapsed / segLen) * 100);
+          progressBar.style.width = pct + '%';
+        }
+      }
+    });
+
+    await ffmpeg.load({
+      coreURL: await toBlobURL(
+        'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.js',
+        'text/javascript'
+      ),
+      wasmURL: await toBlobURL(
+        'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm',
+        'application/wasm'
+      ),
+    });
+    ffmpegLoading.style.display = 'none';
+  } catch (e) {
+    ffmpegStatus.textContent = 'FFmpeg failed to load: ' + e.message;
+    console.error(e);
+  }
+
+  // Drag & drop
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    videoFile = file;
+    baseName = file.name.replace(/\.[^.]+$/, '');
+    metaName.textContent = file.name.length > 30 ? file.name.slice(0, 28) + '…' : file.name;
+    metaSize.textContent = formatBytes(file.size);
+
+    const url = URL.createObjectURL(file);
+    videoPreview.src = url;
+    videoPreview.onloadedmetadata = () => {
+      videoDuration = videoPreview.duration;
+      metaDuration.textContent = formatDuration(videoDuration);
+      // Set slider max to min of duration or 300
+      const maxSeg = Math.min(300, Math.floor(videoDuration));
+      segSlider.max = maxSeg;
+      segSlider.value = Math.min(30, Math.floor(videoDuration / 4) || 10);
+      updateTimeline();
+      btnSplit.disabled = !ffmpeg;
+    };
+
+    previewSection.style.display = 'block';
+    dropzone.style.display = 'none';
+    resultsSection.style.display = 'none';
+    resultsGrid.innerHTML = '';
+    showStatus('', '');
+  }
+
+  segSlider.addEventListener('input', updateTimeline);
+
+  btnSplit.addEventListener('click', splitVideo);
+  btnReset.addEventListener('click', () => {
+    videoPreview.src = '';
+    videoFile = null;
+    videoDuration = 0;
+    segmentBlobs = [];
+    dropzone.style.display = 'block';
+    previewSection.style.display = 'none';
+    resultsSection.style.display = 'none';
+    progressWrap.style.display = 'none';
+    progressBar.style.width = '0%';
+    showStatus('', '');
+    fileInput.value = '';
+  });
+
+  async function splitVideo() {
+    if (!ffmpeg || !videoFile) return;
+    const segLen = parseInt(segSlider.value);
+    const count = Math.ceil(videoDuration / segLen);
+
+    btnSplit.disabled = true;
+    btnReset.disabled = true;
+    progressWrap.style.display = 'block';
+    progressBar.style.width = '0%';
+    resultsSection.style.display = 'none';
+    resultsGrid.innerHTML = '';
+    segmentBlobs = [];
+    showStatus('', '');
+
+    try {
+      progressLabel.textContent = 'Writing file to memory…';
+      await ffmpeg.writeFile('input.mp4', await fetchFile(videoFile));
+
+      const segInfos = [];
+      for (let i = 0; i < count; i++) {
+        const start = i * segLen;
+        const duration = Math.min(segLen, videoDuration - start);
+        const outName = `seg_${String(i+1).padStart(3,'0')}.mp4`;
+        progressLabel.textContent = `Encoding segment ${i+1} of ${count}…`;
+        progressBar.style.width = ((i / count) * 90) + '%';
+
+        await ffmpeg.exec([
+          '-ss', String(start),
+          '-i', 'input.mp4',
+          '-t', String(duration),
+          '-c', 'copy',
+          '-avoid_negative_ts', 'make_zero',
+          outName
+        ]);
+
+        const data = await ffmpeg.readFile(outName);
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+        segmentBlobs.push({ blob, name: `${baseName}_${String(i+1).padStart(3,'0')}.mp4`, start, end: start + duration });
+        await ffmpeg.deleteFile(outName);
+      }
+
+      await ffmpeg.deleteFile('input.mp4');
+      progressBar.style.width = '100%';
+      progressLabel.textContent = `Done — ${count} segments created`;
+
+      renderResults();
+    } catch (e) {
+      showStatus('Error: ' + e.message, 'error');
+      console.error(e);
+    } finally {
+      btnSplit.disabled = false;
+      btnReset.disabled = false;
+    }
+  }
+
+  function renderResults() {
+    resultsGrid.innerHTML = '';
+    segmentBlobs.forEach((seg, i) => {
+      const url = URL.createObjectURL(seg.blob);
+      const row = document.createElement('div');
+      row.className = 'seg-row';
+      row.innerHTML = `
+        <span class="seg-index">${String(i+1).padStart(2,'0')}</span>
+        <div class="seg-info">
+          <div class="seg-name">${seg.name}</div>
+          <div class="seg-time">${formatDuration(seg.start)} → ${formatDuration(seg.end)}</div>
+        </div>
+        <span class="seg-size">${formatBytes(seg.blob.size)}</span>
+        <a class="dl-btn" href="${url}" download="${seg.name}">
+          <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M12 5v10M7 15l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20h16" stroke-linecap="round"/></svg>
+          Download
+        </a>
+      `;
+      resultsGrid.appendChild(row);
+    });
+    resultsSection.style.display = 'block';
+  }
+
+  btnDlAll.addEventListener('click', async () => {
+    if (!segmentBlobs.length) return;
+    btnDlAll.disabled = true;
+    btnDlAll.textContent = 'Zipping…';
+    try {
+      const zip = new JSZip();
+      for (const seg of segmentBlobs) {
+        const buf = await seg.blob.arrayBuffer();
+        zip.file(seg.name, buf);
+      }
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = baseName + '_segments.zip';
+      a.click();
+    } finally {
+      btnDlAll.disabled = false;
+      btnDlAll.innerHTML = `<svg viewBox="0 0 24 24" stroke-width="1.8" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M12 5v10M7 15l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20h16" stroke-linecap="round"/></svg> Download All (ZIP)`;
+    }
+  });
+})();
+</script>
+</body>
+</html>
